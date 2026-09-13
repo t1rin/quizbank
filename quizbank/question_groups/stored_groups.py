@@ -54,12 +54,45 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
                         #     set([*result[group_name][mode][title], *answers]))
         return result
 
+    def _validate_str(self, **fields: str) -> bool:
+        """Проверяет, что все переданные значения являются строками."""
+        bad = [name for name, value in fields.items()
+               if not isinstance(value, str)]
+        if bad:
+            logger.error("Ожидается строковый тип для: %s", ", ".join(bad))
+            return False
+        return True
+
+    def _dedupe_answers(self, answers: list[StoredAnswer], *,
+                        title: str, group: str) -> list[StoredAnswer]:
+        """Убирает дубликаты ответов по тексту, логируя каждый из них."""
+        seen: set[str] = set()
+        unique: list[StoredAnswer] = []
+        for answer_text, is_right in answers:
+            if answer_text not in seen:
+                seen.add(answer_text)
+                unique.append((answer_text, is_right))
+            else:
+                logger.warning(
+                    "Дубликат ответа '%s' в '%s' группы '%s'",
+                    answer_text, title, group)
+        return unique
+
     def _save(self) -> None:
         """Сохраняет изменения на диск (если подключён JSON) и сбрасывает кэш."""
         if self._path:
             self._update_json()
         else:
             self._invalidate_cache()
+
+    def _get_bucket(self, group: str, reverse: bool = False,
+                    ) -> dict[str, list[StoredAnswer]] | None:
+        """Возвращает словарь {title: answers} для группы/режима, либо None."""
+        if group not in self._data:
+            logger.error("Группа '%s' не найдена", group)
+            return None
+        qmode = StoredMode.ANSWER if reverse else StoredMode.QUESTION
+        return self._data[group][qmode]
 
     def add_question(self, group: str, title: str,
                      right_answers: list[str],
@@ -92,9 +125,45 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
         if title not in bucket:
             bucket[title] = answers
         else:
-            old_answers = bucket[title]
-            bucket[title] = list(set([*old_answers, *answers]))
-       
+            bucket[title] = self._dedupe_answers(
+                [*bucket[title], *answers], title=title, group=group)
+
+        self._save()
+        return True
+
+    def rename_question(self, group: str, old_title: str, new_title: str,
+                        reverse: bool = False, overwrite: bool = False,
+                        ) -> bool:
+        if not self._validate_str(group=group, old_title=old_title,
+                                  new_title=new_title):
+            return False
+
+        bucket = self._get_bucket(group, reverse)
+        if bucket is None:
+            return False
+
+        if old_title not in bucket:
+            logger.error("Вопрос '%s' не найден в группе '%s'",
+                         old_title, group)
+            return False
+
+        if old_title == new_title:
+            return True
+
+        if new_title in bucket:
+            if not overwrite:
+                logger.error(
+                    "Вопрос '%s' уже существует в группе '%s'; "
+                    "передайте overwrite=True для объединения ответов",
+                    new_title, group)
+                return False
+            bucket[new_title] = self._dedupe_answers(
+                [*bucket[new_title], *bucket[old_title]],
+                title=new_title, group=group)
+            del bucket[old_title]
+        else:
+            bucket[new_title] = bucket.pop(old_title)
+
         self._save()
         return True
 
