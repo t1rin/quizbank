@@ -74,35 +74,35 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
         qmode = (StoredMode.ANSWER if reverse
                  else StoredMode.QUESTION)
-        if group not in self.data.keys():
-            self.data[group] = {StoredMode.QUESTION: {},
+        if group not in self._data.keys():
+            self._data[group] = {StoredMode.QUESTION: {},
                                 StoredMode.ANSWER: {}}
 
         answers = [*[(ans, True ) for ans in right_answers],
                    *[(ans, False) for ans in wrong_answers]]
 
-        if title not in self.data[group][qmode].keys():
-            self.data[group][qmode][title] = answers
+        if title not in self._data[group][qmode].keys():
+            self._data[group][qmode][title] = answers
         else:
-            old_answers = self.data[group][qmode][title]
-            self.data[group][qmode][title] = list(
+            old_answers = self._data[group][qmode][title]
+            self._data[group][qmode][title] = list(
                 set([*old_answers, *answers]))
         
         if self._path:
             self._update_json()
 
     def get_groups(self) -> list[str]:
-        return list(self.data.keys())
+        return list(self._data.keys())
 
     def get_qitems(self, group: str,
                    reverse: bool = False,
                    ) -> list[QItem] | None:
-        if group not in self.data.keys():
+        if group not in self._data.keys():
             return None
 
         qmode = (StoredMode.ANSWER if reverse
                  else StoredMode.QUESTION)
-        qitems_source = self.data[group][qmode]
+        qitems_source = self._data[group][qmode]
 
         qitems = []
         for title, answers in qitems_source.items():
@@ -169,7 +169,7 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
         qmode = (StoredMode.ANSWER if reverse
                  else StoredMode.QUESTION)
-        if title not in self.data[group][qmode].keys():
+        if title not in self._data[group][qmode].keys():
             logger.error("title \"" + title + "\" не найден")
             return None
 
@@ -186,7 +186,7 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
                           quantity_ans: int = 3,
                           quantity_right: int = 1,
                           ) -> QItem | None:
-        if not self.data:
+        if not self._data:
             logger.warning("Вопросов нет")
             return None
     
