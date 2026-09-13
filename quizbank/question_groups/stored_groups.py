@@ -54,10 +54,17 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
                         #     set([*result[group_name][mode][title], *answers]))
         return result
 
+    def _save(self) -> None:
+        """Сохраняет изменения на диск (если подключён JSON) и сбрасывает кэш."""
+        if self._path:
+            self._update_json()
+        else:
+            self._invalidate_cache()
+
     def add_question(self, group: str, title: str,
                      right_answers: list[str],
                      wrong_answers: list[str],
-                     reverse: bool = False) -> None:
+                     reverse: bool = False) -> bool:
         if self._path and not self._is_normal_json():
             self._create_json()
 
@@ -70,26 +77,26 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
                          " group -> [str], key -> [str]," + 
                          " right_answers -> list[str]," +
                          " wrong_answers -> list[str])", err)
-            return
+            return False
 
         qmode = (StoredMode.ANSWER if reverse
                  else StoredMode.QUESTION)
-        if group not in self._data.keys():
+        if group not in self._data:
             self._data[group] = {StoredMode.QUESTION: {},
-                                StoredMode.ANSWER: {}}
+                                 StoredMode.ANSWER: {}}
 
         answers = [*[(ans, True ) for ans in right_answers],
                    *[(ans, False) for ans in wrong_answers]]
 
-        if title not in self._data[group][qmode].keys():
-            self._data[group][qmode][title] = answers
+        bucket = self._data[group][qmode]
+        if title not in bucket:
+            bucket[title] = answers
         else:
-            old_answers = self._data[group][qmode][title]
-            self._data[group][qmode][title] = list(
-                set([*old_answers, *answers]))
-        
-        if self._path:
-            self._update_json()
+            old_answers = bucket[title]
+            bucket[title] = list(set([*old_answers, *answers]))
+       
+        self._save()
+        return True
 
     def get_groups(self) -> list[str]:
         return list(self._data.keys())
