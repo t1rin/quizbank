@@ -61,17 +61,18 @@ class BaseQGroups(ABC, Generic[ModelT]):
 
     def _create_json(self) -> None:
         assert self._path is not None
+    
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
         if self._path.exists():
             index = 1
             while True:
                 backup_path = self._path.parent / f"{self._path.stem}_{index}{self._path.suffix}"
                 if not backup_path.exists():
                     self._path.rename(backup_path)
-                    logger.info("Создан новый %s", self._path)
+                    logger.info("Файл переименован -> %s", self._path)
                     break
                 index += 1
-    
-        self._path.parent.mkdir(parents=True, exist_ok=True)
         
         self._path.write_bytes(self._orjson_bytes({}))
         logger.info("Создан новый %s", self._path)

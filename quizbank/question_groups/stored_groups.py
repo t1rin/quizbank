@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from copy import deepcopy
 from random import shuffle, choice, sample
 
@@ -36,18 +37,16 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
                             result[group_name][mode][title] = []
                         result[group_name][mode][title].extend(answers)
                         
-                        seen_texts = set()
-                        unique_answers = []
+                        unique_answers: list[Any] = []
                         for answer in result[group_name][mode][title]:
                             answer_text = answer[0]
-                            if answer_text not in seen_texts:
-                                seen_texts.add(answer_text)
+                            existing = next((i for i, a in enumerate(unique_answers) if a[0] == answer_text), None)
+                            if existing is None:
                                 unique_answers.append(answer)
                             else:
-                                logging.warning(
-                                    "Дубликат ответа '%s' в '%s' группы '%s'",
-                                    answer_text, title, group_name
-                                )
+                                if answer[1] and not unique_answers[existing][1]:
+                                    unique_answers[existing] = answer
+                                logger.warning(...)
                     
                         result[group_name][mode][title] = unique_answers
                         # result[group_name][mode][title] = list(

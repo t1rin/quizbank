@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .question_groups import *
+from .question_groups import StoredQGroups, SimpleQGroups
 
 
 if TYPE_CHECKING:
