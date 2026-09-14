@@ -79,7 +79,7 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
         return unique
 
     def _save(self) -> None:
-        """Сохраняет изменения на диск (если подключён JSON) и сбрасывает кэш."""
+        """Персистит изменения на диск (если подключён JSON) и сбрасывает кэш."""
         if self._path:
             self._update_json()
         else:
@@ -166,6 +166,120 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
         self._save()
         return True
+
+    def remove_question(self, group: str, title: str,
+                        reverse: bool = False) -> bool:
+        if not self._validate_str(group=group, title=title):
+            return False
+
+        bucket = self._get_bucket(group, reverse)
+        if bucket is None:
+            return False
+
+        if title not in bucket:
+            logger.error("Вопрос '%s' не найден в группе '%s'", title, group)
+            return False
+
+        del bucket[title]
+        self._save()
+        return True
+
+    def add_answer(self, group: str, title: str, answer: str,
+                   is_right: bool = False, reverse: bool = False) -> bool:
+        if not self._validate_str(group=group, title=title, answer=answer):
+            return False
+
+        bucket = self._get_bucket(group, reverse)
+        if bucket is None:
+            return False
+
+        if title not in bucket:
+            logger.error(
+                "Вопрос '%s' не найден в группе '%s'; используйте "
+                "add_question для создания нового вопроса", title, group)
+            return False
+
+        answers = bucket[title]
+        if any(text == answer for text, _ in answers):
+            logger.warning(
+                "Ответ '%s' уже существует у вопроса '%s'", answer, title)
+            return False
+
+        answers.append((answer, is_right))
+        self._save()
+        return True
+
+    def rename_answer(self, group: str, title: str,
+                      old_answer: str, new_answer: str,
+                      reverse: bool = False) -> bool:
+        if not self._validate_str(group=group, title=title,
+                                  old_answer=old_answer,
+                                  new_answer=new_answer):
+            return False
+
+        bucket = self._get_bucket(group, reverse)
+        if bucket is None:
+            return False
+
+        if title not in bucket:
+            logger.error("Вопрос '%s' не найден в группе '%s'", title, group)
+            return False
+
+        answers = bucket[title]
+        texts = [text for text, _ in answers]
+
+        if old_answer not in texts:
+            logger.error(
+                "Ответ '%s' не найден у вопроса '%s'", old_answer, title)
+            return False
+
+        if old_answer == new_answer:
+            return True
+
+        if new_answer in texts:
+            logger.error(
+                "Ответ '%s' уже существует у вопроса '%s'",
+                new_answer, title)
+            return False
+
+        idx = texts.index(old_answer)
+        is_right = answers[idx][1]
+        answers[idx] = (new_answer, is_right)
+
+        self._save()
+        return True
+
+    def remove_answer(self, group: str, title: str, answer: str,
+                      reverse: bool = False) -> bool:
+        if not self._validate_str(group=group, title=title, answer=answer):
+            return False
+
+        bucket = self._get_bucket(group, reverse)
+        if bucket is None:
+            return False
+
+        if title not in bucket:
+            logger.error("Вопрос '%s' не найден в группе '%s'", title, group)
+            return False
+
+        answers = bucket[title]
+        for index, (text, is_right) in enumerate(answers):
+            if text != answer:
+                continue
+
+            right_count = sum(1 for _, r in answers if r)
+            if is_right and right_count <= 1:
+                logger.error(
+                    "Нельзя удалить единственный правильный ответ "
+                    "вопроса '%s'", title)
+                return False
+
+            del answers[index]
+            self._save()
+            return True
+
+        logger.error("Ответ '%s' не найден у вопроса '%s'", answer, title)
+        return False
 
     def get_groups(self) -> list[str]:
         return list(self._data.keys())
