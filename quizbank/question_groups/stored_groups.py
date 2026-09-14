@@ -134,6 +134,17 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
     def rename_question(self, group: str, old_title: str, new_title: str,
                         reverse: bool = False, overwrite: bool = False,
                         ) -> bool:
+        """Переименовывает вопрос, сохраняя все его ответы.
+
+        Если new_title уже занят другим вопросом:
+          - при overwrite=False (по умолчанию) операция отменяется;
+          - при overwrite=True ответы обоих вопросов объединяются
+            (дубликаты по тексту ответа отбрасываются с предупреждением
+            в лог).
+
+        Возвращает True при успехе, False — если вопрос не найден или
+        переименование отменено из-за конфликта имён.
+        """
         if not self._validate_str(group=group, old_title=old_title,
                                   new_title=new_title):
             return False
@@ -169,6 +180,10 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
     def remove_question(self, group: str, title: str,
                         reverse: bool = False) -> bool:
+        """Удаляет вопрос и все его варианты ответа из группы.
+
+        Возвращает True, если вопрос был найден и удалён, иначе False.
+        """
         if not self._validate_str(group=group, title=title):
             return False
 
@@ -186,6 +201,12 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
     def add_answer(self, group: str, title: str, answer: str,
                    is_right: bool = False, reverse: bool = False) -> bool:
+        """Добавляет новый вариант ответа к уже существующему вопросу.
+
+        Вопрос должен быть создан заранее через add_question.
+        Возвращает False, если вопрос не найден или такой ответ
+        (по тексту) уже присутствует.
+        """
         if not self._validate_str(group=group, title=title, answer=answer):
             return False
 
@@ -212,6 +233,7 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
     def rename_answer(self, group: str, title: str,
                       old_answer: str, new_answer: str,
                       reverse: bool = False) -> bool:
+        """Переименовывает текст ответа, сохраняя признак правильности."""
         if not self._validate_str(group=group, title=title,
                                   old_answer=old_answer,
                                   new_answer=new_answer):
@@ -251,6 +273,13 @@ class StoredQGroups(BaseQGroups[StoredQGroupsModel]):
 
     def remove_answer(self, group: str, title: str, answer: str,
                       reverse: bool = False) -> bool:
+        """Удаляет конкретный вариант ответа у вопроса.
+
+        Не позволяет удалить последний оставшийся правильный ответ,
+        чтобы вопрос не остался без корректного варианта — такую
+        попытку нужно проводить через remove_question или сначала
+        добавить новый правильный ответ через add_answer.
+        """
         if not self._validate_str(group=group, title=title, answer=answer):
             return False
 
